@@ -1,8 +1,16 @@
 import { Zap, Target, BarChart3 } from 'lucide-react'
 import Upload from './Upload'
+import { Box, Metrics } from '../types'
 
 interface Props {
-  onComplete: (sessionId: string, imageSrc: string, boxes: any[], metrics: any, imageId: string, filename?: string) => void
+  onComplete: (results: Array<{
+    sessionId: string
+    imageSrc: string
+    boxes: Box[]
+    metrics: Metrics
+    imageId: string
+    filename?: string
+  }>) => void
 }
 
 export default function LandingPage({ onComplete }: Props) {

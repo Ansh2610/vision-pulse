@@ -5,7 +5,14 @@ import { Info } from 'lucide-react'
 import LoadingSpinner from './LoadingSpinner'
 
 interface Props {
-  onComplete: (sessionId: string, imageSrc: string, boxes: Box[], metrics: Metrics, imageId: string, filename?: string) => void
+  onComplete: (results: Array<{
+    sessionId: string
+    imageSrc: string
+    boxes: Box[]
+    metrics: Metrics
+    imageId: string
+    filename?: string
+  }>) => void
   existingSessionId?: string | null
   compact?: boolean
 }
@@ -41,6 +48,7 @@ export default function Upload({ onComplete, existingSessionId, compact = false 
 
       // Store all results before calling onComplete
       const results: Array<{
+        sessionId: string
         imageSrc: string
         boxes: Box[]
         metrics: Metrics
@@ -54,7 +62,6 @@ export default function Upload({ onComplete, existingSessionId, compact = false 
       // Process ALL images first
       for (let i = 0; i < filesToProcess.length; i++) {
         const currentFile = filesToProcess[i]
-        const progress = ((i + 1) / filesToProcess.length) * 100
         
         // Update progress
         setUploadProgress({ current: i + 1, total: filesToProcess.length })
@@ -89,6 +96,7 @@ export default function Upload({ onComplete, existingSessionId, compact = false 
 
         // Store result (don't call onComplete yet!)
         results.push({
+          sessionId: sessionId!,
           imageSrc,
           boxes: inferRes.boxes,
           metrics: inferRes.metrics,
@@ -97,20 +105,11 @@ export default function Upload({ onComplete, existingSessionId, compact = false 
         })
       }
 
-      // ALL images processed - now call onComplete for each one
+      // ALL images processed - now call onComplete ONCE with all results
       setLoadingMessage('Loading editor...')
       setLoadingSubmessage(`All ${results.length} images ready!`)
       
-      for (const result of results) {
-        onComplete(
-          sessionId!,
-          result.imageSrc,
-          result.boxes,
-          result.metrics,
-          result.imageId,
-          result.filename
-        )
-      }
+      onComplete(results)
 
       // Clear files after successful upload
       setFile(null)

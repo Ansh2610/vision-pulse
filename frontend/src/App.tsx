@@ -70,26 +70,46 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedBoxIndex])
 
-  const handleUploadComplete = (session: string, src: string, detectedBoxes: Box[], m: Metrics, imageId: string, filename?: string) => {
-    console.log('[UPLOAD COMPLETE] Session:', session, 'Image ID:', imageId, 'Boxes:', detectedBoxes.length)
-    setSessionId(session)
-    setImageSrc(src)
-    setBoxes(detectedBoxes)
-    setMetrics(m)
-    setImageCount((prev) => prev + 1)
-    setActiveTab('editor') // Switch to editor tab to see new image
+  const handleUploadComplete = (results: Array<{
+    sessionId: string
+    imageSrc: string
+    boxes: Box[]
+    metrics: Metrics
+    imageId: string
+    filename?: string
+  }>) => {
+    if (results.length === 0) return
     
-    // Add to history - use backend's image_id instead of generating our own
-    const newHistoryItem: ImageHistory = {
-      id: imageId, // Use backend's image_id for consistency
-      imageSrc: src,
-      boxes: detectedBoxes,
+    console.log('[BATCH UPLOAD COMPLETE] Processing', results.length, 'images')
+    
+    // Set session from first result
+    const sessionId = results[0].sessionId
+    setSessionId(sessionId)
+    
+    // Add ALL images to history first
+    const newHistoryItems: ImageHistory[] = results.map(result => ({
+      id: result.imageId,
+      imageSrc: result.imageSrc,
+      boxes: result.boxes,
       timestamp: new Date(),
-      filename: filename || 'image.jpg'
-    }
-    setImageHistory((prev) => [...prev, newHistoryItem])
-    setCurrentHistoryIndex(null) // Reset to show latest
-    setCurrentImageId(imageId) // Set current image ID from backend
+      filename: result.filename || 'image.jpg'
+    }))
+    
+    setImageHistory((prev) => [...prev, ...newHistoryItems])
+    setImageCount((prev) => prev + results.length)
+    
+    // Show the LAST uploaded image in editor
+    const lastResult = results[results.length - 1]
+    setImageSrc(lastResult.imageSrc)
+    setBoxes(lastResult.boxes)
+    setMetrics(lastResult.metrics)
+    setCurrentImageId(lastResult.imageId)
+    setCurrentHistoryIndex(null)
+    
+    // NOW switch to editor (only once, after all images loaded)
+    setActiveTab('editor')
+    
+    console.log('[BATCH UPLOAD COMPLETE] Loaded', results.length, 'images, showing last one')
   }
 
   const handleReset = () => {
