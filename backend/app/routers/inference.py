@@ -35,8 +35,8 @@ def get_model():
         try:
             model.to('cuda')  # Try GPU first
             model.half()  # Use FP16 for faster inference
-        except:
-            # Fallback to CPU if CUDA not available
+        except (RuntimeError, AssertionError, AttributeError):
+            # Fallback to CPU if CUDA not available or not compatible
             pass
         # Set deterministic behavior for consistent results
         import torch
