@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, production ]  # Test on both branches
   pull_request:
-    branches: [ main ]
+    branches: [ main, production ]  # Test on both branches
 
 jobs:
   backend-tests:

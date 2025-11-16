@@ -3,7 +3,7 @@ name: Deploy to Fly.io
 on:
   push:
     branches:
-      - main
+      - production  # Only deploy when you push to production branch
     paths:
       - 'backend/**'
       - 'Dockerfile'
@@ -12,7 +12,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy Backend
+    name: Deploy Backend to Production
     runs-on: ubuntu-latest
     
     # Only deploy if backend files changed
