@@ -22,7 +22,7 @@ ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
 
 # YOLO Inference
 YOLO_CONFIDENCE_THRESHOLD = 0.25  # Minimum confidence for detections
-YOLO_INFERENCE_TIMEOUT_SECONDS = 10  # Maximum time allowed for inference
+YOLO_INFERENCE_TIMEOUT_SECONDS = 30  # Maximum time allowed for inference (increased for cold starts)
 
 # Notes:
 # - For production, consider using Redis for distributed rate limiting
