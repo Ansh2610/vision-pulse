@@ -41,3 +41,9 @@ Thumbs.db
 *.pem
 *.key
 .aws/
+
+# Documentation (keep local only, except README)
+*_CACHING.md
+*_DEPLOYMENT.md
+ARCHITECTURE.md
+TECHNICAL_*.md

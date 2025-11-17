@@ -31,6 +31,7 @@ function App() {
   const [metricsRefreshTrigger, setMetricsRefreshTrigger] = useState(0) // Increment to trigger metrics refresh
   const [selectedBoxIndex, setSelectedBoxIndex] = useState<number | null>(null)
   const [drawingMode, setDrawingMode] = useState(false)
+  const [isTransitioning, setIsTransitioning] = useState(false) // For smooth image transitions
 
   // Save selection state to image history whenever it changes
   useEffect(() => {
@@ -123,65 +124,32 @@ function App() {
     setCurrentHistoryIndex(null)
   }
 
-  const handleSelectHistoryImage = async (index: number) => {
+  const handleSelectHistoryImage = (index: number) => {
     const historyItem = imageHistory[index]
-    setImageSrc(historyItem.imageSrc)
-    setCurrentHistoryIndex(index)
-    setCurrentImageId(historyItem.id)
-    setActiveTab('editor')
     
-    // Restore the selection for this image
-    setSelectedBoxIndex(historyItem.selectedBoxIndex ?? null)
+    // Start transition animation
+    setIsTransitioning(true)
     
-    console.log('[SELECT IMAGE] Selected image index:', index, 'ID:', historyItem.id)
-    console.log('[SELECT IMAGE] Restoring selection:', historyItem.selectedBoxIndex ?? 'none')
-    
-    // Fetch latest box states from backend to get current verification status
-    try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-      const res = await fetch(`${API_URL}/api/validations/${sessionId}`)
-      if (res.ok) {
-        const data = await res.json()
-        console.log('[SELECT IMAGE] Backend returned', data.images?.length, 'images')
-        
-        // Find the boxes for this specific image using image_id
-        const imageId = historyItem.id
-        console.log('[SELECT IMAGE] Looking for image_id:', imageId)
-        
-        // Debug: Log all image IDs from backend
-        data.images?.forEach((img: any, idx: number) => {
-          console.log(`[SELECT IMAGE] Backend image ${idx}: ${img.image_id}, boxes: ${img.boxes?.length}`)
-        })
-        
-        const imageData = data.images?.find((img: any) => img.image_id === imageId)
-        if (imageData && imageData.boxes) {
-          console.log('[SELECT IMAGE] FOUND matching image with', imageData.boxes.length, 'boxes')
-          // Use fresh boxes from backend with current verification status
-          setBoxes(imageData.boxes)
-          // Also update imageHistory with fresh boxes
-          setImageHistory((prev) => {
-            const updated = [...prev]
-            updated[index] = {
-              ...updated[index],
-              boxes: imageData.boxes
-            }
-            return updated
-          })
-        } else {
-          console.warn('[SELECT IMAGE] NOT FOUND - using fallback local boxes')
-          // Fallback to local boxes if not found
-          setBoxes(historyItem.boxes)
-        }
-      } else {
-        console.error('[SELECT IMAGE] Backend error:', res.status)
-        // Fallback to local boxes on error
-        setBoxes(historyItem.boxes)
-      }
-    } catch (err) {
-      console.error('Failed to fetch latest box states:', err)
-      // Fallback to local boxes
-      setBoxes(historyItem.boxes)
-    }
+    // Wait for fade out, then switch content
+    setTimeout(() => {
+      // CLIENT-SIDE ONLY: Use cached data from imageHistory
+      // This avoids re-running YOLO inference when switching between images
+      setImageSrc(historyItem.imageSrc)
+      setBoxes([...historyItem.boxes]) // Create new array to trigger re-render
+      setCurrentHistoryIndex(index)
+      setCurrentImageId(historyItem.id)
+      setActiveTab('editor')
+      
+      // Restore the selection for this image
+      setSelectedBoxIndex(historyItem.selectedBoxIndex ?? null)
+      
+      console.log('[CLIENT CACHE] Switched to image index:', index, 'ID:', historyItem.id)
+      console.log('[CLIENT CACHE] Loaded', historyItem.boxes.length, 'cached boxes')
+      console.log('[CLIENT CACHE] Restored selection:', historyItem.selectedBoxIndex ?? 'none')
+      
+      // Fade back in
+      setTimeout(() => setIsTransitioning(false), 50)
+    }, 150) // Fade out duration
   }
 
   const handleDeleteImage = (index: number) => {
@@ -402,8 +370,8 @@ function App() {
                                 : Math.max(0, currentHistoryIndex - 1)
                               handleSelectHistoryImage(prevIndex)
                             }}
-                            disabled={currentHistoryIndex === 0}
-                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+                            disabled={currentHistoryIndex === 0 || isTransitioning}
+                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
                           >
                             ← Previous
                           </button>
@@ -417,36 +385,43 @@ function App() {
                                 : Math.min(imageHistory.length - 1, currentHistoryIndex + 1)
                               handleSelectHistoryImage(nextIndex)
                             }}
-                            disabled={currentHistoryIndex === imageHistory.length - 1 || (currentHistoryIndex === null && imageHistory.length === 1)}
-                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+                            disabled={currentHistoryIndex === imageHistory.length - 1 || (currentHistoryIndex === null && imageHistory.length === 1) || isTransitioning}
+                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
                           >
                             Next →
                           </button>
                         </div>
                       )}
                       
-                      {/* Canvas */}
-                      <Canvas
-                        key={currentImageId}
-                        sessionId={sessionId!}
-                        imageId={currentImageId!}
-                        imageSrc={imageSrc!}
-                        initialBoxes={boxes}
-                        onBoxesUpdate={handleUpdateCurrentBoxes}
-                        onBoxSelect={setSelectedBoxIndex}
-                        selectedBoxIndex={selectedBoxIndex}
-                        drawingMode={drawingMode}
-                      />
+                      {/* Canvas with smooth transition */}
+                      <div 
+                        className={`flex-1 flex flex-col transition-opacity duration-200 ${
+                          isTransitioning ? 'opacity-0' : 'opacity-100'
+                        }`}
+                        style={{ transition: 'opacity 0.15s ease-in-out' }}
+                      >
+                        <Canvas
+                          key={currentImageId}
+                          sessionId={sessionId!}
+                          imageId={currentImageId!}
+                          imageSrc={imageSrc!}
+                          initialBoxes={boxes}
+                          onBoxesUpdate={handleUpdateCurrentBoxes}
+                          onBoxSelect={setSelectedBoxIndex}
+                          selectedBoxIndex={selectedBoxIndex}
+                          drawingMode={drawingMode}
+                        />
 
-                      {/* Detected Objects Panel */}
-                      <DetectedObjectsPanel
-                        boxes={boxes}
-                        imageSrc={imageSrc!}
-                        selectedBoxIndex={selectedBoxIndex}
-                        onSelectBox={setSelectedBoxIndex}
-                        onVerifyBox={handleVerifyBox}
-                        onDeleteBox={handleDeleteBox}
-                      />
+                        {/* Detected Objects Panel */}
+                        <DetectedObjectsPanel
+                          boxes={boxes}
+                          imageSrc={imageSrc!}
+                          selectedBoxIndex={selectedBoxIndex}
+                          onSelectBox={setSelectedBoxIndex}
+                          onVerifyBox={handleVerifyBox}
+                          onDeleteBox={handleDeleteBox}
+                        />
+                      </div>
                     </>
                   ) : activeTab === 'gallery' ? (
                   <Gallery
