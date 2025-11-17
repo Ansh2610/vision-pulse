@@ -6,7 +6,6 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -21,10 +20,6 @@ from app.config.security import (
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
-
-# Request model for inference with optional base64 data
-class InferenceRequest(BaseModel):
-    image_data: Optional[str] = None
 
 # load model once (lazy)
 model = None
@@ -62,15 +57,14 @@ def get_model():
 async def run_inference(
     request: Request, 
     session_id: str, 
-    image_id: str = None,
-    body: InferenceRequest = None
+    image_id: Optional[str] = None
 ):
     """
     Run YOLO on uploaded image.
     Returns boxes + metrics (FPS, avg conf, false pos rate).
     
     Accepts image data in two ways:
-    1. Via body.image_data (base64-encoded) - PREFERRED for distributed deployments
+    1. Via request body with image_data (base64-encoded) - PREFERRED for distributed deployments
     2. Via filesystem lookup (fallback for backwards compatibility)
     
     Ensures CONSISTENT inference quality across all images by:
@@ -82,8 +76,13 @@ async def run_inference(
     Security: Rate limited + timeout protection.
     """
     
-    # Determine image source
-    image_data = body.image_data if body else None
+    # Try to parse request body for image_data
+    image_data = None
+    try:
+        body = await request.json()
+        image_data = body.get('image_data')
+    except:
+        pass  # No body or invalid JSON - use filesystem fallback
     
     if image_data:
         # PREFERRED PATH: Use base64 data directly (stateless, works with distributed instances)
