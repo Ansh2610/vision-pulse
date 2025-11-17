@@ -63,74 +63,57 @@ export default function Upload({ onComplete, existingSessionId, compact = false 
       for (let i = 0; i < filesToProcess.length; i++) {
         const currentFile = filesToProcess[i]
         
-        try {
-          // Update progress
-          setUploadProgress({ current: i + 1, total: filesToProcess.length })
+        // Update progress
+        setUploadProgress({ current: i + 1, total: filesToProcess.length })
 
-          // Step 1: Upload
-          setLoadingMessage(`Uploading image ${i + 1} of ${filesToProcess.length}...`)
-          setLoadingSubmessage(`${currentFile.name} (${(currentFile.size / 1024).toFixed(1)} KB)`)
-          
-          let uploadRes
-          if (i === 0 && !sessionId) {
-            uploadRes = await api.upload(currentFile)
-            sessionId = uploadRes.session_id
-          } else {
-            uploadRes = await api.upload(currentFile, sessionId!)
-          }
-          
-          const imageId = uploadRes.image_id
-
-          // Step 2: Run AI detection on the SPECIFIC image
-          setLoadingMessage(`Detecting objects ${i + 1} of ${filesToProcess.length}...`)
-          setLoadingSubmessage(`YOLOv8 is analyzing ${currentFile.name}`)
-          const inferRes = await api.infer(sessionId!, imageId)
-
-          // Step 3: Load image data
-          setLoadingMessage(`Processing results ${i + 1} of ${filesToProcess.length}...`)
-          setLoadingSubmessage(`Preparing ${currentFile.name} for editor`)
-          const imageSrc = await new Promise<string>((resolve) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(reader.result as string)
-            reader.readAsDataURL(currentFile)
-          })
-
-          // Store result (don't call onComplete yet!)
-          results.push({
-            sessionId: sessionId!,
-            imageSrc,
-            boxes: inferRes.boxes,
-            metrics: inferRes.metrics,
-            imageId: inferRes.image_id,
-            filename: currentFile.name
-          })
-        } catch (imageErr: any) {
-          // Log error but continue processing other images
-          console.error(`[UPLOAD] Failed to process ${currentFile.name}:`, imageErr)
-          
-          // Show error to user but don't stop the whole batch
-          setLoadingMessage(`⚠️ Failed: ${currentFile.name}`)
-          setLoadingSubmessage(imageErr.message || 'Inference timeout - try again')
-          
-          // Wait a moment so user sees the error
-          await new Promise(resolve => setTimeout(resolve, 1500))
+        // Step 1: Upload
+        setLoadingMessage(`Uploading image ${i + 1} of ${filesToProcess.length}...`)
+        setLoadingSubmessage(`${currentFile.name} (${(currentFile.size / 1024).toFixed(1)} KB)`)
+        
+        let uploadRes
+        if (i === 0 && !sessionId) {
+          uploadRes = await api.upload(currentFile)
+          sessionId = uploadRes.session_id
+        } else {
+          uploadRes = await api.upload(currentFile, sessionId!)
         }
+        
+        const imageId = uploadRes.image_id
+
+        // Step 2: Run AI detection on the SPECIFIC image
+        setLoadingMessage(`Detecting objects ${i + 1} of ${filesToProcess.length}...`)
+        setLoadingSubmessage(`YOLOv8 is analyzing ${currentFile.name}`)
+        const inferRes = await api.infer(sessionId!, imageId)
+
+        // Step 3: Load image data
+        setLoadingMessage(`Processing results ${i + 1} of ${filesToProcess.length}...`)
+        setLoadingSubmessage(`Preparing ${currentFile.name} for editor`)
+        const imageSrc = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.readAsDataURL(currentFile)
+        })
+
+        // Store result (don't call onComplete yet!)
+        results.push({
+          sessionId: sessionId!,
+          imageSrc,
+          boxes: inferRes.boxes,
+          metrics: inferRes.metrics,
+          imageId: inferRes.image_id,
+          filename: currentFile.name
+        })
       }
 
       // ALL images processed - now call onComplete ONCE with all results
-      if (results.length > 0) {
-        setLoadingMessage('Loading editor...')
-        setLoadingSubmessage(`Successfully processed ${results.length} of ${filesToProcess.length} images`)
-        
-        onComplete(results)
+      setLoadingMessage('Loading editor...')
+      setLoadingSubmessage(`All ${results.length} images ready!`)
+      
+      onComplete(results)
 
-        // Clear files after successful upload
-        setFile(null)
-        setFiles([])
-      } else {
-        // All images failed
-        throw new Error(`Failed to process all ${filesToProcess.length} images. Please try again or try fewer images.`)
-      }
+      // Clear files after successful upload
+      setFile(null)
+      setFiles([])
     } catch (err: any) {
       setError(err.message || 'Something went wrong')
     } finally {
@@ -169,12 +152,11 @@ export default function Upload({ onComplete, existingSessionId, compact = false 
 
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
-          {!compact && (
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Choose image(s)
-            </label>
-          )}
+          <label htmlFor="file-upload" className={compact ? "sr-only" : "block text-sm font-medium text-gray-700 mb-2"}>
+            Choose image(s)
+          </label>
           <input
+            id="file-upload"
             type="file"
             accept="image/jpeg,image/png,image/webp"
             onChange={handleFileChange}

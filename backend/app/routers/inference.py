@@ -11,8 +11,7 @@ from app.utils.metrics import calc_metrics
 from app.schemas.validation import GroundTruthBox
 from app.config.security import (
     INFERENCE_RATE_LIMIT,
-    YOLO_CONFIDENCE_THRESHOLD,
-    YOLO_INFERENCE_TIMEOUT_SECONDS
+    YOLO_CONFIDENCE_THRESHOLD
 )
 
 router = APIRouter()
@@ -79,7 +78,7 @@ async def run_inference(request: Request, session_id: str, image_id: str = None)
             raise HTTPException(404, "Session not found")
         filepath = max(files, key=lambda f: f.stat().st_mtime)
     
-    # inference with timeout protection
+    # inference with proper error handling
     start = time.perf_counter()
     try:
         yolo = get_model()
@@ -90,14 +89,13 @@ async def run_inference(request: Request, session_id: str, image_id: str = None)
             imgsz=640,  # Fixed image size for consistency
             max_det=300,  # Maximum detections per image
             agnostic_nms=False,  # Class-specific NMS
-            verbose=False
+            verbose=False,
+            device='cpu',  # Explicit CPU mode (no CUDA overhead)
+            half=False  # No FP16 on CPU
         )
         
         elapsed = time.perf_counter() - start
-        
-        # Timeout check
-        if elapsed > YOLO_INFERENCE_TIMEOUT_SECONDS:
-            raise HTTPException(408, f"Inference timeout ({YOLO_INFERENCE_TIMEOUT_SECONDS}s limit)")
+        print(f"[INFERENCE] Completed in {elapsed:.2f}s for {filepath.name}")
             
     except Exception as e:
         raise HTTPException(500, f"Inference failed: {str(e)}")
