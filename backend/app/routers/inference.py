@@ -67,8 +67,13 @@ async def run_inference(request: Request, session_id: str, image_id: str = None)
     # Find the specific image file
     if image_id:
         # Use the specific image_id provided
+        print(f"[INFERENCE] Looking for image_id: {image_id} in {UPLOAD_DIR}")
         files = list(UPLOAD_DIR.glob(f"{image_id}.*"))
+        print(f"[INFERENCE] Found {len(files)} files: {[f.name for f in files]}")
         if not files:
+            # List all files in directory for debugging
+            all_files = list(UPLOAD_DIR.glob("*"))
+            print(f"[INFERENCE] All files in directory ({len(all_files)}): {[f.name for f in all_files]}")
             raise HTTPException(404, f"Image {image_id} not found")
         filepath = files[0]
     else:

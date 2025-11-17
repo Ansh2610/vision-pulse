@@ -59,8 +59,17 @@ async def upload_image(request: Request, file: UploadFile, session_id: str = Non
     image_id = f"{session_id}_{timestamp}"
     filepath = UPLOAD_DIR / f"{image_id}.{ext}"
     
+    # Ensure directory exists
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    
     with open(filepath, "wb") as f:
         f.write(contents)
+    
+    # Verify file was written
+    if not filepath.exists():
+        raise HTTPException(500, "Failed to save file")
+    
+    print(f"[UPLOAD] Saved {filepath.name} ({len(contents)} bytes) - exists: {filepath.exists()}")
     
     # Increment session counter
     session_manager.increment(session_id)
