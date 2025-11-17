@@ -2,6 +2,7 @@ import os
 import time
 import uuid
 import magic
+import base64
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, HTTPException, Request
 from slowapi import Limiter
@@ -71,6 +72,9 @@ async def upload_image(request: Request, file: UploadFile, session_id: str = Non
     
     print(f"[UPLOAD] Saved {filepath.name} ({len(contents)} bytes) - exists: {filepath.exists()}")
     
+    # Encode image as base64 for stateless inference
+    image_base64 = base64.b64encode(contents).decode('utf-8')
+    
     # Increment session counter
     session_manager.increment(session_id)
     
@@ -80,5 +84,6 @@ async def upload_image(request: Request, file: UploadFile, session_id: str = Non
         "filename": file.filename,
         "size": len(contents),
         "mime": mime,
+        "image_data": image_base64,  # Base64-encoded image for inference
         "session_upload_count": session_manager.get_count(session_id)
     }

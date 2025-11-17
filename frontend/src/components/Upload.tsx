@@ -79,20 +79,20 @@ export default function Upload({ onComplete, existingSessionId, compact = false 
         }
         
         const imageId = uploadRes.image_id
+        const imageBase64 = uploadRes.image_data  // Get base64 data from upload response
 
-        // Step 2: Run AI detection on the SPECIFIC image
+        // Step 2: Run AI detection on the SPECIFIC image using base64 data
         setLoadingMessage(`Detecting objects ${i + 1} of ${filesToProcess.length}...`)
         setLoadingSubmessage(`YOLOv8 is analyzing ${currentFile.name}`)
-        const inferRes = await api.infer(sessionId!, imageId)
+        const inferRes = await api.infer(sessionId!, imageId, imageBase64)
 
-        // Step 3: Load image data
+        // Step 3: Construct data URL for display (reuse base64 from upload)
         setLoadingMessage(`Processing results ${i + 1} of ${filesToProcess.length}...`)
         setLoadingSubmessage(`Preparing ${currentFile.name} for editor`)
-        const imageSrc = await new Promise<string>((resolve) => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result as string)
-          reader.readAsDataURL(currentFile)
-        })
+        
+        // Determine MIME type for data URL
+        const mimeType = uploadRes.mime || 'image/jpeg'
+        const imageSrc = `data:${mimeType};base64,${imageBase64}`
 
         // Store result (don't call onComplete yet!)
         results.push({

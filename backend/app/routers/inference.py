@@ -1,12 +1,15 @@
 import time
 import json
+import base64
+import io
 import numpy as np
 from pathlib import Path
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Body
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from ultralytics import YOLO
+from PIL import Image
 from app.utils.metrics import calc_metrics
 from app.schemas.validation import GroundTruthBox
 from app.config.security import (
@@ -50,10 +53,19 @@ def get_model():
 
 @router.post("/infer/{session_id}")
 @limiter.limit(INFERENCE_RATE_LIMIT)
-async def run_inference(request: Request, session_id: str, image_id: str = None):
+async def run_inference(
+    request: Request, 
+    session_id: str, 
+    image_id: str = None,
+    image_data: str = Body(None, description="Base64-encoded image data for stateless inference")
+):
     """
     Run YOLO on uploaded image.
     Returns boxes + metrics (FPS, avg conf, false pos rate).
+    
+    Accepts image data in two ways:
+    1. Via image_data parameter (base64-encoded) - PREFERRED for distributed deployments
+    2. Via filesystem lookup (fallback for backwards compatibility)
     
     Ensures CONSISTENT inference quality across all images by:
     - Using fixed image size (640x640) - no dynamic resizing
@@ -64,24 +76,42 @@ async def run_inference(request: Request, session_id: str, image_id: str = None)
     Security: Rate limited + timeout protection.
     """
     
-    # Find the specific image file
-    if image_id:
-        # Use the specific image_id provided
-        print(f"[INFERENCE] Looking for image_id: {image_id} in {UPLOAD_DIR}")
-        files = list(UPLOAD_DIR.glob(f"{image_id}.*"))
-        print(f"[INFERENCE] Found {len(files)} files: {[f.name for f in files]}")
-        if not files:
-            # List all files in directory for debugging
-            all_files = list(UPLOAD_DIR.glob("*"))
-            print(f"[INFERENCE] All files in directory ({len(all_files)}): {[f.name for f in all_files]}")
-            raise HTTPException(404, f"Image {image_id} not found")
-        filepath = files[0]
-    else:
-        # Fallback: Find all files for this session and get most recent
-        files = list(UPLOAD_DIR.glob(f"{session_id}_*.*"))
-        if not files:
-            raise HTTPException(404, "Session not found")
-        filepath = max(files, key=lambda f: f.stat().st_mtime)
+    # Determine image source
+    if image_data:
+        # PREFERRED PATH: Use base64 data directly (stateless, works with distributed instances)
+        print(f"[INFERENCE] Using base64 data for image_id: {image_id}")
+        try:
+            # Decode base64 to bytes
+            image_bytes = base64.b64decode(image_data)
+            # Convert to PIL Image for YOLO
+            image_obj = Image.open(io.BytesIO(image_bytes))
+            # Convert to numpy array for YOLO
+    # inference with proper error handling
+    start = time.perf_counter()
+    try:
+        yolo = get_model()
+        results = yolo.predict(
+            image_array,  # Can be filepath string OR numpy array
+            conf=YOLO_CONFIDENCE_THRESHOLD,
+            iou=0.45,  # Standard NMS IoU threshold
+            imgsz=640,  # Fixed image size for consistency
+            max_det=300,  # Maximum detections per image
+            agnostic_nms=False,  # Class-specific NMS
+            verbose=False,
+            device='cpu',  # Explicit CPU mode (no CUDA overhead)
+            half=False  # No FP16 on CPU
+        )       print(f"[INFERENCE] All files in directory ({len(all_files)}): {[f.name for f in all_files]}")
+                raise HTTPException(404, f"Image {image_id} not found")
+            filepath = files[0]
+        else:
+            # Fallback: Find all files for this session and get most recent
+            files = list(UPLOAD_DIR.glob(f"{session_id}_*.*"))
+            if not files:
+                raise HTTPException(404, "Session not found")
+            filepath = max(files, key=lambda f: f.stat().st_mtime)
+        
+        # Read image from file
+        image_array = str(filepath)
     
     # inference with proper error handling
     start = time.perf_counter()
