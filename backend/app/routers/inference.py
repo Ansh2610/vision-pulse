@@ -38,7 +38,7 @@ def get_model():
         try:
             model.to('cuda')  # Try GPU first
             model.half()  # Use FP16 for faster inference
-        except:
+        except Exception:
             # Fallback to CPU if CUDA not available
             pass
         # Set deterministic behavior for consistent results
@@ -77,7 +77,7 @@ async def run_inference(request: Request, session_id: str, image_id: Optional[st
     try:
         body = await request.json()
         image_data = body.get('image_data')
-    except:
+    except Exception:
         pass  # No body - use filesystem fallback
     
     # Determine image source
