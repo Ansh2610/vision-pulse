@@ -8,6 +8,7 @@ import TrueMetricsPanel from './components/TrueMetricsPanel.tsx'
 import DetectedObjectsPanel from './components/DetectedObjectsPanel.tsx'
 import { api } from './api.ts'
 import { Box, Metrics } from './types.ts'
+import { saveSessionCache, loadSessionCache, clearSessionCache } from './utils/cache.ts'
 
 interface ImageHistory {
   id: string
@@ -32,6 +33,47 @@ function App() {
   const [selectedBoxIndex, setSelectedBoxIndex] = useState<number | null>(null)
   const [drawingMode, setDrawingMode] = useState(false)
   const [isTransitioning, setIsTransitioning] = useState(false) // For smooth image transitions
+
+  // Load cached session on mount (HYBRID CACHE: IndexedDB + localStorage fallback)
+  useEffect(() => {
+    const restoreCache = async () => {
+      try {
+        const cached = await loadSessionCache()
+        if (cached) {
+          setSessionId(cached.sessionId)
+          setImageHistory(cached.images)
+          setImageCount(cached.images.length)
+          
+          // Show most recent image
+          const lastImage = cached.images[cached.images.length - 1]
+          setImageSrc(lastImage.imageSrc)
+          setBoxes(lastImage.boxes)
+          setCurrentImageId(lastImage.id)
+          setSelectedBoxIndex(lastImage.selectedBoxIndex ?? null)
+          
+          console.log('[APP] Restored session from cache:', cached.sessionId)
+          console.log('[APP] Loaded', cached.images.length, 'cached images')
+        }
+      } catch (err) {
+        console.error('[APP] Failed to restore cache:', err)
+      }
+    }
+    
+    restoreCache()
+  }, []) // Run once on mount
+
+  // Auto-save to cache whenever session data changes (DEBOUNCED)
+  useEffect(() => {
+    if (!sessionId || imageHistory.length === 0) return
+    
+    // Debounce saves to avoid excessive writes (save 500ms after last change)
+    const timeoutId = setTimeout(() => {
+      saveSessionCache(sessionId, imageHistory)
+        .catch(err => console.error('[APP] Failed to save cache:', err))
+    }, 500)
+    
+    return () => clearTimeout(timeoutId)
+  }, [sessionId, imageHistory])
 
   // Save selection state to image history whenever it changes
   useEffect(() => {
@@ -114,6 +156,9 @@ function App() {
   }
 
   const handleReset = () => {
+    // Clear cache when user explicitly resets
+    clearSessionCache().catch(err => console.error('[APP] Failed to clear cache:', err))
+    
     setSessionId(null)
     setImageSrc(null)
     setBoxes([])
@@ -122,6 +167,8 @@ function App() {
     setImageCount(0)
     setImageHistory([])
     setCurrentHistoryIndex(null)
+    
+    console.log('[APP] Session reset, cache cleared')
   }
 
   const handleSelectHistoryImage = (index: number) => {
