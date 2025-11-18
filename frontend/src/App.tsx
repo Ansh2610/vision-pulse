@@ -167,6 +167,8 @@ function App() {
     setImageCount(0)
     setImageHistory([])
     setCurrentHistoryIndex(null)
+    setSelectedBoxIndex(null)
+    setDrawingMode(false)
     
     console.log('[APP] Session reset, cache cleared')
   }

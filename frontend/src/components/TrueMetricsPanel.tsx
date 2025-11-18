@@ -11,14 +11,22 @@ export default function TrueMetricsPanel({ sessionId, refreshTrigger }: Props) {
   const [trueMetrics, setTrueMetrics] = useState<TrueMetrics | null>(null)
   const [sessionStats, setSessionStats] = useState<{ totalImages: number; totalBoxes: number; verifiedCount: number } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchMetrics = async () => {
     try {
       setLoading(true)
+      setError(null)
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const res = await fetch(`${API_URL}/api/validations/${sessionId}`)
       
       if (!res.ok) {
+        if (res.status === 404) {
+          setError('SESSION_EXPIRED')
+          setTrueMetrics(null)
+          setSessionStats(null)
+          return
+        }
         throw new Error('Failed to fetch metrics')
       }
 
@@ -45,6 +53,7 @@ export default function TrueMetricsPanel({ sessionId, refreshTrigger }: Props) {
       })
     } catch (err) {
       console.error('Failed to fetch true metrics:', err)
+      setError('FETCH_ERROR')
       setTrueMetrics(null)
       setSessionStats(null)
     } finally {
@@ -66,6 +75,57 @@ export default function TrueMetricsPanel({ sessionId, refreshTrigger }: Props) {
   const sessionInfo = sessionStats 
     ? `${sessionStats.totalImages} images, ${sessionStats.totalBoxes} total boxes` 
     : 'Loading...'
+
+  // Show session expired error
+  if (error === 'SESSION_EXPIRED') {
+    return (
+      <div className="p-8 max-w-4xl mx-auto">
+        <div className="bg-red-50 border-2 border-red-200 p-6 rounded-lg">
+          <div className="flex items-start gap-3">
+            <Info className="w-6 h-6 text-red-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-xl font-bold mb-2 text-red-900">Session Expired</h3>
+              <p className="text-sm text-red-700 mb-3">
+                This session no longer exists on the server. Your images are cached locally, but validation data has been cleaned up.
+              </p>
+              <p className="text-sm text-red-700 mb-4">
+                <strong>To continue:</strong> Click the "Home" button and upload your images again to create a new session.
+              </p>
+              <div className="text-xs text-red-600 bg-red-100 p-3 rounded border border-red-200">
+                <strong>Why did this happen?</strong><br/>
+                Server sessions are automatically cleaned up after a period of inactivity to save resources. Your images remain cached in your browser, but the backend has no record of this session.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show generic fetch error
+  if (error === 'FETCH_ERROR') {
+    return (
+      <div className="p-8 max-w-4xl mx-auto">
+        <div className="bg-yellow-50 border-2 border-yellow-200 p-6 rounded-lg">
+          <div className="flex items-start gap-3">
+            <Info className="w-6 h-6 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-xl font-bold mb-2 text-yellow-900">Unable to Load Metrics</h3>
+              <p className="text-sm text-yellow-700 mb-3">
+                Could not connect to the server. Please check your internet connection and try again.
+              </p>
+              <button
+                onClick={() => fetchMetrics()}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition text-sm font-medium"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (verifiedCount === 0) {
     return (
