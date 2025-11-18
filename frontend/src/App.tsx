@@ -264,12 +264,20 @@ function App() {
   const handleVerifyBox = async (idx: number, isCorrect: boolean) => {
     try {
       const box = boxes[idx]
-      const box_id = box.box_id || `fallback_${idx}`
+      
+      // Validate that box has required fields
+      if (!box.box_id) {
+        console.error('[VERIFY BOX] Box has no box_id:', box)
+        alert('Cannot verify box: missing ID. Please reload the page.')
+        return
+      }
+      
+      console.log(`[VERIFY BOX] Verifying box ${box.box_id}, isCorrect: ${isCorrect}`)
       
       // Call validation API
       await api.validate(sessionId!, [
         {
-          box_id: box_id,
+          box_id: box.box_id,
           is_correct: isCorrect,
         },
       ])
@@ -282,9 +290,12 @@ function App() {
         is_correct: isCorrect,
       }
       handleUpdateCurrentBoxes(updatedBoxes)
+      
+      console.log(`[VERIFY BOX] Successfully verified box ${box.box_id}`)
     } catch (err) {
       console.error('Verification failed:', err)
-      alert('Failed to verify box. Please try again.')
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+      alert(`Failed to verify box: ${errorMsg}`)
     }
   }
 

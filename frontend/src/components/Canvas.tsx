@@ -241,7 +241,8 @@ export default function Canvas({
         confidence: 1.0,
         label: labelInput.trim(),
         class_id: 999,
-        is_manual: true
+        is_manual: true,
+        box_id: '' // Will be assigned by backend
       }
       
       try {
@@ -251,7 +252,9 @@ export default function Canvas({
         // Update box with the box_id from backend
         const boxWithId: Box = {
           ...newBox,
-          box_id: response.box_id
+          box_id: response.box_id,
+          is_verified: false,
+          is_correct: true
         }
         
         const updatedBoxes = [...boxes, boxWithId]
@@ -261,7 +264,8 @@ export default function Canvas({
         console.log(`[CANVAS] Added manual box (FN): ${response.box_id}`)
       } catch (err) {
         console.error('Failed to add manual box:', err)
-        alert('Failed to add manual box. Please try again.')
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+        alert(`Failed to add manual box: ${errorMsg}`)
       }
     }
     

@@ -62,6 +62,10 @@ class GroundTruthBox(BaseModel):
     verified_at: Optional[datetime] = None
     notes: Optional[str] = Field(None, max_length=500)
     
+    class Config:
+        # Allow extra fields from frontend that aren't in schema
+        extra = "ignore"
+    
     @validator('label')
     def sanitize_label(cls, v):
         """Sanitize label to prevent injection"""
