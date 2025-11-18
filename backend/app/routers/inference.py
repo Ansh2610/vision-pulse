@@ -87,7 +87,17 @@ async def run_inference(request: Request, session_id: str, image_id: Optional[st
         try:
             image_bytes = base64.b64decode(image_data)
             image_obj = Image.open(io.BytesIO(image_bytes))
+            
+            # Convert RGBA to RGB if needed (YOLO requires 3 channels)
+            if image_obj.mode == 'RGBA':
+                print(f"[INFERENCE] Converting RGBA to RGB")
+                image_obj = image_obj.convert('RGB')
+            elif image_obj.mode != 'RGB':
+                print(f"[INFERENCE] Converting {image_obj.mode} to RGB")
+                image_obj = image_obj.convert('RGB')
+            
             image_array = np.array(image_obj)
+            print(f"[INFERENCE] Image shape: {image_array.shape}")
         except Exception as e:
             raise HTTPException(400, f"Failed to decode image data: {str(e)}")
     else:
@@ -130,7 +140,8 @@ async def run_inference(request: Request, session_id: str, image_id: Optional[st
         )
         
         elapsed = time.perf_counter() - start
-        print(f"[INFERENCE] Completed in {elapsed:.2f}s for {filepath.name}")
+        source_info = "base64 data" if image_data else (filepath.name if 'filepath' in locals() else "unknown")
+        print(f"[INFERENCE] Completed in {elapsed:.2f}s for {source_info}")
             
     except Exception as e:
         raise HTTPException(500, f"Inference failed: {str(e)}")
