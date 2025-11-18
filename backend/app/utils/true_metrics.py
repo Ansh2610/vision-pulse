@@ -47,12 +47,16 @@ def calculate_true_metrics(
             yolo_fps=yolo_metrics.get('fps', 0.0)
         )
     
-    # Count TP and FP from YOLO detections
-    true_positives = sum(1 for b in verified_boxes if b.is_correct and not b.is_manual)
+    # Count TP: Correct detections (both YOLO and manual boxes that are verified as correct)
+    # Manual boxes represent True Positives that were missed by YOLO initially (recovered FN → TP)
+    true_positives = sum(1 for b in verified_boxes if b.is_correct)
+    
+    # Count FP: Incorrect YOLO detections only (manual boxes are always correct)
     false_positives = sum(1 for b in verified_boxes if not b.is_correct and not b.is_manual)
     
-    # Count FN: Manually added boxes represent objects YOLO missed
-    false_negatives = sum(1 for b in boxes if b.is_manual)
+    # Count FN: Manually added boxes that are NOT yet verified
+    # Once manual boxes are verified as correct, they become TP (recovered false negatives)
+    false_negatives = sum(1 for b in boxes if b.is_manual and not b.is_verified)
     
     # Calculate metrics
     total_verified = len(verified_boxes)
