@@ -54,17 +54,13 @@ def get_model():
 
 @router.post("/infer/{session_id}")
 @limiter.limit(INFERENCE_RATE_LIMIT)
-async def run_inference(
-    request: Request, 
-    session_id: str, 
-    image_id: Optional[str] = None
-):
+async def run_inference(request: Request, session_id: str, image_id: Optional[str] = None):
     """
     Run YOLO on uploaded image.
     Returns boxes + metrics (FPS, avg conf, false pos rate).
     
     Accepts image data in two ways:
-    1. Via request body with image_data (base64-encoded) - PREFERRED for distributed deployments
+    1. Via request body with image_data (base64) - PREFERRED for distributed deployments
     2. Via filesystem lookup (fallback for backwards compatibility)
     
     Ensures CONSISTENT inference quality across all images by:
@@ -76,38 +72,36 @@ async def run_inference(
     Security: Rate limited + timeout protection.
     """
     
-    # Try to parse request body for image_data
+    # Try to parse request body for base64 image data
     image_data = None
     try:
         body = await request.json()
         image_data = body.get('image_data')
     except:
-        pass  # No body or invalid JSON - use filesystem fallback
+        pass  # No body - use filesystem fallback
     
+    # Determine image source
     if image_data:
-        # PREFERRED PATH: Use base64 data directly (stateless, works with distributed instances)
+        # PREFERRED: Use base64 data (stateless, works with distributed instances)
         print(f"[INFERENCE] Using base64 data for image_id: {image_id}")
         try:
-            # Decode base64 to bytes
             image_bytes = base64.b64decode(image_data)
-            # Convert to PIL Image for YOLO
             image_obj = Image.open(io.BytesIO(image_bytes))
-            # Convert to numpy array for YOLO
-    # inference with proper error handling
-    start = time.perf_counter()
-    try:
-        yolo = get_model()
-        results = yolo.predict(
-            image_array,  # Can be filepath string OR numpy array
-            conf=YOLO_CONFIDENCE_THRESHOLD,
-            iou=0.45,  # Standard NMS IoU threshold
-            imgsz=640,  # Fixed image size for consistency
-            max_det=300,  # Maximum detections per image
-            agnostic_nms=False,  # Class-specific NMS
-            verbose=False,
-            device='cpu',  # Explicit CPU mode (no CUDA overhead)
-            half=False  # No FP16 on CPU
-        )       print(f"[INFERENCE] All files in directory ({len(all_files)}): {[f.name for f in all_files]}")
+            image_array = np.array(image_obj)
+        except Exception as e:
+            raise HTTPException(400, f"Failed to decode image data: {str(e)}")
+    else:
+        # FALLBACK: Read from filesystem
+        # Find the specific image file
+        if image_id:
+            # Use the specific image_id provided
+            print(f"[INFERENCE] Looking for image_id: {image_id} in {UPLOAD_DIR}")
+            files = list(UPLOAD_DIR.glob(f"{image_id}.*"))
+            print(f"[INFERENCE] Found {len(files)} files: {[f.name for f in files]}")
+            if not files:
+                # List all files in directory for debugging
+                all_files = list(UPLOAD_DIR.glob("*"))
+                print(f"[INFERENCE] All files in directory ({len(all_files)}): {[f.name for f in all_files]}")
                 raise HTTPException(404, f"Image {image_id} not found")
             filepath = files[0]
         else:
@@ -117,15 +111,14 @@ async def run_inference(
                 raise HTTPException(404, "Session not found")
             filepath = max(files, key=lambda f: f.stat().st_mtime)
         
-        # Read image from file
-        image_array = str(filepath)
+        image_array = str(filepath)  # YOLO accepts filepath strings
     
     # inference with proper error handling
     start = time.perf_counter()
     try:
         yolo = get_model()
         results = yolo.predict(
-            filepath, 
+            image_array,  # Can be filepath string OR numpy array
             conf=YOLO_CONFIDENCE_THRESHOLD,
             iou=0.45,  # Standard NMS IoU threshold
             imgsz=640,  # Fixed image size for consistency

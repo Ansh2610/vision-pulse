@@ -80,10 +80,10 @@ async def upload_image(request: Request, file: UploadFile, session_id: str = Non
     
     return {
         "session_id": session_id,
-        "image_id": image_id,  # Return the unique image ID
+        "image_id": image_id,
         "filename": file.filename,
         "size": len(contents),
         "mime": mime,
-        "image_data": image_base64,  # Base64-encoded image for inference
+        "image_data": image_base64,  # Base64 for stateless inference
         "session_upload_count": session_manager.get_count(session_id)
     }
