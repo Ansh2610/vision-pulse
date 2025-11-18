@@ -242,26 +242,26 @@ export default function Canvas({
         label: labelInput.trim(),
         class_id: 999,
         is_manual: true,
+        is_verified: true,  // Manually drawn boxes are always verified
+        is_correct: true,   // Manually drawn boxes are always correct (100%)
         box_id: '' // Will be assigned by backend
       }
       
       try {
-        // Send to backend to save as False Negative
+        // Send to backend to save as False Negative (missed by YOLO, added by user)
         const response = await api.addManualBox(sessionId, imageId, newBox)
         
         // Update box with the box_id from backend
         const boxWithId: Box = {
           ...newBox,
-          box_id: response.box_id,
-          is_verified: false,
-          is_correct: true
+          box_id: response.box_id
         }
         
         const updatedBoxes = [...boxes, boxWithId]
         setBoxes(updatedBoxes)
         onBoxesUpdate?.(updatedBoxes)
         
-        console.log(`[CANVAS] Added manual box (FN): ${response.box_id}`)
+        console.log(`[CANVAS] Added manual box (FN - verified): ${response.box_id}`)
       } catch (err) {
         console.error('Failed to add manual box:', err)
         const errorMsg = err instanceof Error ? err.message : 'Unknown error'

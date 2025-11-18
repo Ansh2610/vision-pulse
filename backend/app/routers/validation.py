@@ -299,13 +299,15 @@ async def add_manual_box(
                 # Create the box dictionary
                 box_dict = box.dict()
                 box_dict['box_id'] = box_id
-                box_dict['is_manual'] = True  # Mark as manually added (False Negative)
+                box_dict['is_manual'] = True      # Mark as manually added (False Negative)
+                box_dict['is_verified'] = True    # Manual boxes are always verified
+                box_dict['is_correct'] = True     # Manual boxes are always correct (100%)
                 
                 # Add to the image's boxes
                 img_data['boxes'].append(box_dict)
                 
                 print(f"[ADD MANUAL BOX] Added manual box {box_id} to image {image_id}")
-                print(f"[ADD MANUAL BOX]   Label: {box.label}, is_manual: True")
+                print(f"[ADD MANUAL BOX]   Label: {box.label}, is_manual: True, is_verified: True (100% correct)")
                 
                 # Save updated session data
                 with open(validation_file, 'w') as f:
