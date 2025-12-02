@@ -7,22 +7,40 @@ let csrfToken: string = ''
 const getCsrfToken = async (): Promise<string> => {
   if (csrfToken) return csrfToken
 
-  const res = await fetch(`${API_URL}/csrf-token`, {
-    credentials: 'include',
-  })
+  // Add timeout for CSRF token fetch (cold start tolerance)
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 90000)
+  
+  try {
+    const res = await fetch(`${API_URL}/csrf-token`, {
+      credentials: 'include',
+      signal: controller.signal,
+    })
+    
+    clearTimeout(timeoutId)
 
-  if (!res.ok) {
-    throw new Error('Failed to fetch CSRF token')
+    if (!res.ok) {
+      throw new Error('Failed to fetch CSRF token')
+    }
+
+    const data = await res.json()
+    csrfToken = data.csrf_token || ''
+    return csrfToken
+  } catch (err: any) {
+    clearTimeout(timeoutId)
+    
+    // If cold start timeout, provide helpful error
+    if (err.name === 'AbortError') {
+      throw new Error('Backend is starting up, please wait and try again...')
+    }
+    throw err
   }
-
-  const data = await res.json()
-  csrfToken = data.csrf_token || ''
-  return csrfToken
 }
 
 const makeAuthenticatedRequest = async (
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retries = 2
 ): Promise<Response> => {
   const token = await getCsrfToken()
   
@@ -31,13 +49,32 @@ const makeAuthenticatedRequest = async (
     headers.set('X-CSRF-Token', token)
   }
   
-  const res = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include',
-  })
-
-  return res
+  // Create abort controller with 90s timeout (handles Fly.io cold starts)
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 90000)
+  
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include',
+      signal: controller.signal,
+    })
+    
+    clearTimeout(timeoutId)
+    return res
+  } catch (err: any) {
+    clearTimeout(timeoutId)
+    
+    // Retry on network errors or timeouts (backend might be cold-starting)
+    if (retries > 0 && (err.name === 'AbortError' || err.message?.includes('fetch'))) {
+      console.warn(`[API] Request failed, retrying... (${retries} attempts left)`)
+      await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2s before retry
+      return makeAuthenticatedRequest(url, options, retries - 1)
+    }
+    
+    throw err
+  }
 }
 
 export const api = {

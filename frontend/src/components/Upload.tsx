@@ -115,7 +115,12 @@ export default function Upload({ onComplete, existingSessionId, compact = false 
       setFile(null)
       setFiles([])
     } catch (err: any) {
-      setError(err.message || 'Something went wrong')
+      // Detect cold start / timeout errors
+      if (err.message?.includes('starting up') || err.message?.includes('AbortError')) {
+        setError('⏱️ Backend is waking up from sleep. This takes 60-90 seconds on first request. Please wait and try again in 15 seconds.')
+      } else {
+        setError(err.message || 'Something went wrong')
+      }
     } finally {
       setLoading(false)
       setUploadProgress(null)
